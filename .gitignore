@@ -2,7 +2,7 @@
 *.swp
 *~.nib
 
-xcuserdata
+xcuserdata/
 
 *.mode1v3
 *.pbxuser
@@ -15,5 +15,3 @@ build/
 *.mode2v3
 project.xcworkspace/
 *.orig
-
-Resources/images-packed/
