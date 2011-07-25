@@ -45,7 +45,7 @@
 	BOOL ended;
 }
 
-@property (readwrite,retain) id<TextBoxDelegate> delegate;
+@property (readwrite,assign) id<TextBoxDelegate> delegate;
 
 - (id) initWithColor:(ccColor4B)color 
 			   width:(GLfloat)w 

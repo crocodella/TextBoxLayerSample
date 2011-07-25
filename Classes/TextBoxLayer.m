@@ -21,7 +21,7 @@
 		currentPageIndex = 0;
 		
 		CCBMFontConfiguration *conf = FNTConfigLoadFile(TEXT_FONT_FILE);
-		linesPerPage = h / conf->commonHeight_;
+		linesPerPage = h / conf->commonHeight_ * [CCDirector sharedDirector].contentScaleFactor;
 		
 		NSArray *words = [txt componentsSeparatedByString:@" "];
 		
@@ -125,7 +125,7 @@
 	
 	int totalSize = 0;
 	
-	for (int i = 0; i < [txt length]; i++) {
+	for (int i = 0; i < [txt length] / [CCDirector sharedDirector].contentScaleFactor; i++) {
 		
 		int c = [txt characterAtIndex:i];
 		ccBMFontDef def = conf->BMFontArray_[c];
@@ -163,7 +163,7 @@
 			
 			if (!ended) {
 				ended = YES;
-				
+
 				if ([delegate respondsToSelector:@selector(textBox:didFinishAllTextWithPageCount:)]) {
 					[delegate textBox:self didFinishAllTextWithPageCount:totalPages];
 				}
