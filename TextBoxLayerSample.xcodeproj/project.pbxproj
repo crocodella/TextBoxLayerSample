@@ -68,6 +68,8 @@
 		50F414F01069373D002A0D5E /* Default.png in Resources */ = {isa = PBXBuildFile; fileRef = 50F414EC1069373D002A0D5E /* Default.png */; };
 		50F414F11069373D002A0D5E /* fps_images.png in Resources */ = {isa = PBXBuildFile; fileRef = 50F414ED1069373D002A0D5E /* fps_images.png */; };
 		50F414F21069373D002A0D5E /* Icon.png in Resources */ = {isa = PBXBuildFile; fileRef = 50F414EE1069373D002A0D5E /* Icon.png */; };
+		65231AD813DDC8DA00F8625F /* arial16-hd.fnt in Resources */ = {isa = PBXBuildFile; fileRef = 65231AD613DDC8DA00F8625F /* arial16-hd.fnt */; };
+		65231AD913DDC8DA00F8625F /* arial16-hd.png in Resources */ = {isa = PBXBuildFile; fileRef = 65231AD713DDC8DA00F8625F /* arial16-hd.png */; };
 		DC6640030F83B3EA000B3E49 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DC6640020F83B3EA000B3E49 /* AudioToolbox.framework */; };
 		DC6640050F83B3EA000B3E49 /* OpenAL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DC6640040F83B3EA000B3E49 /* OpenAL.framework */; };
 		DCCBF1B70F6022AE0040855A /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DCCBF1B60F6022AE0040855A /* CoreGraphics.framework */; };
@@ -323,6 +325,8 @@
 		50F414ED1069373D002A0D5E /* fps_images.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = fps_images.png; sourceTree = "<group>"; };
 		50F414EE1069373D002A0D5E /* Icon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Icon.png; sourceTree = "<group>"; };
 		50F414EF1069373D002A0D5E /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		65231AD613DDC8DA00F8625F /* arial16-hd.fnt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = "arial16-hd.fnt"; sourceTree = "<group>"; };
+		65231AD713DDC8DA00F8625F /* arial16-hd.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "arial16-hd.png"; sourceTree = "<group>"; };
 		DC6640020F83B3EA000B3E49 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
 		DC6640040F83B3EA000B3E49 /* OpenAL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenAL.framework; path = System/Library/Frameworks/OpenAL.framework; sourceTree = SDKROOT; };
 		DCCBF1B60F6022AE0040855A /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
@@ -712,6 +716,8 @@
 		50F414EB1069373D002A0D5E /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				65231AD613DDC8DA00F8625F /* arial16-hd.fnt */,
+				65231AD713DDC8DA00F8625F /* arial16-hd.png */,
 				15C2B84E12E767D600B08A5B /* arial16.fnt */,
 				15C2B84F12E767D600B08A5B /* arial16.png */,
 				E02BB762126CC1E0006E46A2 /* iTunesArtwork */,
@@ -1134,6 +1140,8 @@
 				E02BB763126CC1E0006E46A2 /* iTunesArtwork in Resources */,
 				15C2B85012E767D600B08A5B /* arial16.fnt in Resources */,
 				15C2B85112E767D600B08A5B /* arial16.png in Resources */,
+				65231AD813DDC8DA00F8625F /* arial16-hd.fnt in Resources */,
+				65231AD913DDC8DA00F8625F /* arial16-hd.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
