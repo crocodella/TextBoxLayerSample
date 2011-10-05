@@ -8,24 +8,9 @@
 
 #import <Foundation/Foundation.h>
 #import "cocos2d.h"
+#import "TextBox.h"
 
-#define TEXT_SPEED 60
-#define TEXT_FONT_FILE @"arial16.fnt"
-
-@class TextBoxLayer;
-
-@protocol TextBoxDelegate <NSObject>
-
-- (void)textBox:(TextBoxLayer *)tbox 
-	didFinishAllTextWithPageCount:(int)pc;
-
-@optional
-- (void)textBox:(TextBoxLayer *)tbox didMoveToPage:(int)p;
-
-@end
-
-
-@interface TextBoxLayer : CCLayerColor {
+@interface TextBoxLayer : CCLayerColor <TextBox> {
 	
 	CCLabelBMFont *textLabel;
 	
@@ -46,14 +31,6 @@
 }
 
 @property (readwrite,assign) id<TextBoxDelegate> delegate;
-
-- (id) initWithColor:(ccColor4B)color 
-			   width:(GLfloat)w 
-			  height:(GLfloat)h 
-			 padding:(GLfloat)padding 
-				text:(NSString *)txt;
-
-- (void)update:(float)dt;
 
 - (NSString *)nextPage;
 

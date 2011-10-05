@@ -10,6 +10,7 @@
 		15C2B81F12E766D500B08A5B /* TextBoxLayer.m in Sources */ = {isa = PBXBuildFile; fileRef = 15C2B81E12E766D500B08A5B /* TextBoxLayer.m */; };
 		15C2B85012E767D600B08A5B /* arial16.fnt in Resources */ = {isa = PBXBuildFile; fileRef = 15C2B84E12E767D600B08A5B /* arial16.fnt */; };
 		15C2B85112E767D600B08A5B /* arial16.png in Resources */ = {isa = PBXBuildFile; fileRef = 15C2B84F12E767D600B08A5B /* arial16.png */; };
+		15F8F10B143BF1700026D795 /* TextBoxView.m in Sources */ = {isa = PBXBuildFile; fileRef = 15F8F10A143BF1700026D795 /* TextBoxView.m */; };
 		1D60589B0D05DD56006BFB54 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 29B97316FDCFA39411CA2CEA /* main.m */; };
 		1F3B9A2D0EF2145700286867 /* TextBoxLayerSampleAppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 1F3B9A2B0EF2145700286867 /* TextBoxLayerSampleAppDelegate.m */; };
 		504DFBCE10AF12E9006D82FE /* CLScoreServerPost.h in Headers */ = {isa = PBXBuildFile; fileRef = 504DFBC810AF12E9006D82FE /* CLScoreServerPost.h */; };
@@ -267,6 +268,9 @@
 		15C2B81E12E766D500B08A5B /* TextBoxLayer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TextBoxLayer.m; sourceTree = "<group>"; };
 		15C2B84E12E767D600B08A5B /* arial16.fnt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = arial16.fnt; sourceTree = "<group>"; };
 		15C2B84F12E767D600B08A5B /* arial16.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = arial16.png; sourceTree = "<group>"; };
+		15F8F108143BF0320026D795 /* TextBox.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TextBox.h; sourceTree = "<group>"; };
+		15F8F109143BF1700026D795 /* TextBoxView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TextBoxView.h; sourceTree = "<group>"; };
+		15F8F10A143BF1700026D795 /* TextBoxView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TextBoxView.m; sourceTree = "<group>"; };
 		1D6058910D05DD3D006BFB54 /* TextBoxLayerSample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TextBoxLayerSample.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F3B9A2B0EF2145700286867 /* TextBoxLayerSampleAppDelegate.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = TextBoxLayerSampleAppDelegate.m; path = Classes/TextBoxLayerSampleAppDelegate.m; sourceTree = SOURCE_ROOT; };
 		1F3B9A2C0EF2145700286867 /* TextBoxLayerSampleAppDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = TextBoxLayerSampleAppDelegate.h; path = Classes/TextBoxLayerSampleAppDelegate.h; sourceTree = SOURCE_ROOT; };
@@ -598,8 +602,11 @@
 		2D500B1D0D5A766B00DBA0E3 /* Classes */ = {
 			isa = PBXGroup;
 			children = (
+				15F8F108143BF0320026D795 /* TextBox.h */,
 				15C2B81D12E766D500B08A5B /* TextBoxLayer.h */,
 				15C2B81E12E766D500B08A5B /* TextBoxLayer.m */,
+				15F8F109143BF1700026D795 /* TextBoxView.h */,
+				15F8F10A143BF1700026D795 /* TextBoxView.m */,
 				E0F80F5D120A0182005866B8 /* GameConfig.h */,
 				506EDC2F102F528A00A389B3 /* HelloWorldScene.h */,
 				506EDC30102F528A00A389B3 /* HelloWorldScene.m */,
@@ -1157,6 +1164,7 @@
 				506EDC31102F528A00A389B3 /* HelloWorldScene.m in Sources */,
 				E0F80F60120A0182005866B8 /* RootViewController.m in Sources */,
 				15C2B81F12E766D500B08A5B /* TextBoxLayer.m in Sources */,
+				15F8F10B143BF1700026D795 /* TextBoxView.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

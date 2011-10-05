@@ -12,8 +12,24 @@
 
 @synthesize delegate;
 
-- (id) initWithColor:(ccColor4B)color width:(GLfloat)w height:(GLfloat)h padding:(GLfloat)padding text:(NSString *)txt {
-	if ((self = [super initWithColor:color width:w + (padding * 2) height:h + (padding * 2)])) {
+- (id) initWithColor:(UIColor *)color width:(CGFloat)w height:(CGFloat)h padding:(CGFloat)padding text:(NSString *)txt {
+    
+    int numComponents = CGColorGetNumberOfComponents(color.CGColor);
+    
+    CGFloat r = 0, g = 0, b = 0, a = 1;
+    
+    if (numComponents == 4)
+    {
+        const CGFloat *components = CGColorGetComponents(color.CGColor);
+        r = components[0];
+        g = components[1];
+        b = components[2];
+        a = components[3];
+    }    
+    
+    ccColor4B col = ccc4((GLubyte) r * 255 , (GLubyte) g * 255, (GLubyte) b * 255, (GLubyte) a * 255);
+    
+	if ((self = [super initWithColor:col width:w + (padding * 2) height:h + (padding * 2)])) {
 		
 		self.isTouchEnabled = YES;
 		
@@ -156,7 +172,7 @@
 			}
 			
 			if ([delegate respondsToSelector:@selector(textBox:didMoveToPage:)]) {
-				[delegate textBox:self didMoveToPage:currentPageIndex];
+				[delegate textBox:(id<TextBox>) self didMoveToPage:currentPageIndex];
 			}
 			
 		} else {
@@ -165,7 +181,7 @@
 				ended = YES;
 
 				if ([delegate respondsToSelector:@selector(textBox:didFinishAllTextWithPageCount:)]) {
-					[delegate textBox:self didFinishAllTextWithPageCount:totalPages];
+					[delegate textBox:(id<TextBox>) self didFinishAllTextWithPageCount:totalPages];
 				}
 			}
 		}
