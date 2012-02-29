@@ -45,8 +45,18 @@
 		
 		lines = [[NSMutableArray alloc] init];
 		
+        int wc = 0;
+        
 		for (NSString *word in words) {
-			NSString *eval = [wrappedText stringByAppendingFormat:@" %@", word];
+            
+            NSString *eval = nil;
+            
+            if (wc == 0) {
+                eval = word;
+            } else {
+                eval = [wrappedText stringByAppendingFormat:@" %@", word];
+            }
+            
 			int size = [self calculateStringSize:eval];
 			
 			// See if the text so far plus the new word fits the rect
@@ -56,9 +66,15 @@
 				[lines addObject:[NSString stringWithString:wrappedText]];
 				[wrappedText setString:word];
 			} else {
-				[wrappedText appendFormat:@" %@", word];
+                if (wc > 0) {
+                    [wrappedText appendString:@" "];
+                }
+				[wrappedText appendString:word];
 			}
+            
+            wc++;
 		}
+        
 		[lines addObject:[NSString stringWithString:wrappedText]];
 		
 		totalPages = ceil((float)[lines count] / linesPerPage);
