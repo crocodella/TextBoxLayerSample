@@ -2,6 +2,7 @@
  * cocos2d for iPhone: http://www.cocos2d-iphone.org
  *
  * Copyright (c) 2009-2010 Ricardo Quesada
+ * Copyright (c) 2011 Zynga Inc.
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -96,6 +97,7 @@
 	CGRect rect;
 	rect.size = tileSize_;
 	
+	gid &= kFlippedMask;
 	gid = gid - firstGid_;
 	
 	int max_x = (imageSize_.width - margin_*2 + spacing_) / (tileSize_.width + spacing_);
@@ -114,12 +116,15 @@
 @interface CCTMXMapInfo (Private)
 /* initalises parsing of an XML file, either a tmx (Map) file or tsx (Tileset) file */
 -(void) parseXMLFile:(NSString *)xmlFilename;
+/* initalises parsing of an XML string, either a tmx (Map) string or tsx (Tileset) string */
+- (void) parseXMLString:(NSString *)xmlString;
+/* handles the work of parsing for parseXMLFile: and parseXMLString: */
+- (NSError*) parseXMLData:(NSData*)data;
 @end
-
 
 @implementation CCTMXMapInfo
 
-@synthesize orientation = orientation_, mapSize = mapSize_, layers = layers_, tilesets = tilesets_, tileSize = tileSize_, filename = filename_, objectGroups = objectGroups_, properties = properties_;
+@synthesize orientation = orientation_, mapSize = mapSize_, layers = layers_, tilesets = tilesets_, tileSize = tileSize_, filename = filename_, resources = resources_, objectGroups = objectGroups_, properties = properties_;
 @synthesize tileProperties = tileProperties_;
 
 +(id) formatWithTMXFile:(NSString*)tmxFile
@@ -127,33 +132,53 @@
 	return [[[self alloc] initWithTMXFile:tmxFile] autorelease];
 }
 
++(id) formatWithXML:(NSString*)tmxString resourcePath:(NSString*)resourcePath
+{
+	return [[[self alloc] initWithXML:tmxString resourcePath:resourcePath] autorelease];
+}
+
+- (void) internalInit:(NSString*)tmxFileName resourcePath:(NSString*)resourcePath
+{
+	self.tilesets = [NSMutableArray arrayWithCapacity:4];
+	self.layers = [NSMutableArray arrayWithCapacity:4];
+	self.filename = tmxFileName;
+	self.resources = resourcePath;
+	self.objectGroups = [NSMutableArray arrayWithCapacity:4];
+	self.properties = [NSMutableDictionary dictionaryWithCapacity:5];
+	self.tileProperties = [NSMutableDictionary dictionaryWithCapacity:5];
+	
+	// tmp vars
+	currentString = [[NSMutableString alloc] initWithCapacity:1024];
+	storingCharacters = NO;
+	layerAttribs = TMXLayerAttribNone;
+	parentElement = TMXPropertyNone;
+}
+
+-(id) initWithXML:(NSString *)tmxString resourcePath:(NSString*)resourcePath
+{
+	if( (self=[super init])) {
+		[self internalInit:nil resourcePath:resourcePath];
+		[self parseXMLString:tmxString];		
+	}
+	return self;
+}
+
 -(id) initWithTMXFile:(NSString*)tmxFile
 {
 	if( (self=[super init])) {
-		
-		self.tilesets = [NSMutableArray arrayWithCapacity:4];
-		self.layers = [NSMutableArray arrayWithCapacity:4];
-		self.filename = tmxFile;
-		self.objectGroups = [NSMutableArray arrayWithCapacity:4];
-		self.properties = [NSMutableDictionary dictionaryWithCapacity:5];
-		self.tileProperties = [NSMutableDictionary dictionaryWithCapacity:5];
-	
-		// tmp vars
-		currentString = [[NSMutableString alloc] initWithCapacity:1024];
-		storingCharacters = NO;
-		layerAttribs = TMXLayerAttribNone;
-		parentElement = TMXPropertyNone;
-		
+		[self internalInit:tmxFile resourcePath:nil];
 		[self parseXMLFile:filename_];		
 	}
 	return self;
 }
+
 - (void) dealloc
 {
 	CCLOGINFO(@"cocos2d: deallocing %@", self);
 	[tilesets_ release];
 	[layers_ release];
 	[filename_ release];
+	[resources_ release];
 	[currentString release];
 	[objectGroups_ release];
 	[properties_ release];
@@ -161,21 +186,32 @@
 	[super dealloc];
 }
 
-- (void) parseXMLFile:(NSString *)xmlFilename
+- (void) parseXMLData:(NSData*)data
 {
-	NSURL *url = [NSURL fileURLWithPath:[CCFileUtils fullPathFromRelativePath:xmlFilename] ];
-	NSXMLParser *parser = [[NSXMLParser alloc] initWithContentsOfURL:url];
-
+	NSXMLParser *parser = [[[NSXMLParser alloc] initWithData:data] autorelease];
+	
 	// we'll do the parsing
 	[parser setDelegate:self];
 	[parser setShouldProcessNamespaces:NO];
 	[parser setShouldReportNamespacePrefixes:NO];
 	[parser setShouldResolveExternalEntities:NO];
 	[parser parse];
+	
+     NSAssert1( ![parser parserError], @"Error parsing TMX data: %@.", [NSString stringWithCharacters:[data bytes] length:[data length]] );
+}
 
-	NSAssert1( ! [parser parserError], @"Error parsing file: %@.", xmlFilename );
+- (void) parseXMLString:(NSString *)xmlString
+{
+	NSData* data = [xmlString dataUsingEncoding:NSUTF8StringEncoding];
+	[self parseXMLData:data];
+	
+}
 
-	[parser release];
+- (void) parseXMLFile:(NSString *)xmlFilename
+{
+	NSURL *url = [NSURL fileURLWithPath:[CCFileUtils fullPathFromRelativePath:xmlFilename] ];
+	NSData *data = [NSData dataWithContentsOfURL:url];
+	[self parseXMLData:data];
 }
 
 // the XML parser calls here with all the elements
@@ -209,6 +245,8 @@
 		if (externalTilesetFilename) {
 				// Tileset file will be relative to the map file. So we need to convert it to an absolute path
 				NSString *dir = [filename_ stringByDeletingLastPathComponent];	// Directory of map file
+				if (!dir)
+					dir = resources_;
 				externalTilesetFilename = [dir stringByAppendingPathComponent:externalTilesetFilename];	// Append path to tileset file
 				
 				[self parseXMLFile:externalTilesetFilename];
@@ -283,7 +321,9 @@
 		
 		// build full path
 		NSString *imagename = [attributeDict valueForKey:@"source"];		
-		NSString *path = [filename_ stringByDeletingLastPathComponent];		
+		NSString *path = [filename_ stringByDeletingLastPathComponent];
+		if (!path)
+			path = resources_;
 		tileset.sourceImage = [path stringByAppendingPathComponent:imagename];
 
 	} else if([elementName isEqualToString:@"data"]) {
@@ -296,11 +336,14 @@
 			
 			if( [compression isEqualToString:@"gzip"] )
 				layerAttribs |= TMXLayerAttribGzip;
-			
-			NSAssert( !compression || [compression isEqualToString:@"gzip"], @"TMX: unsupported compression method" );
+
+			else if( [compression isEqualToString:@"zlib"] )
+				layerAttribs |= TMXLayerAttribZlib;
+
+			NSAssert( !compression || [compression isEqualToString:@"gzip"] || [compression isEqualToString:@"zlib"], @"TMX: unsupported compression method" );
 		}
 		
-		NSAssert( layerAttribs != TMXLayerAttribNone, @"TMX tile map: Only base64 and/or gzip maps are supported" );
+		NSAssert( layerAttribs != TMXLayerAttribNone, @"TMX tile map: Only base64 and/or gzip/zlib maps are supported" );
 		
 	} else if([elementName isEqualToString:@"object"]) {
 	
@@ -387,15 +430,22 @@
 		CCTMXLayerInfo *layer = [layers_ lastObject];
 		
 		unsigned char *buffer;
-		len = base64Decode((unsigned char*)[currentString UTF8String], [currentString length], &buffer);
+		len = base64Decode((unsigned char*)[currentString UTF8String], (unsigned int) [currentString length], &buffer);
 		if( ! buffer ) {
 			CCLOG(@"cocos2d: TiledMap: decode data error");
 			return;
 		}
 		
-		if( layerAttribs & TMXLayerAttribGzip ) {
+		if( layerAttribs & (TMXLayerAttribGzip | TMXLayerAttribZlib) ) {
 			unsigned char *deflated;
-			ccInflateMemory(buffer, len, &deflated);
+			CGSize s = [layer layerSize];
+			int sizeHint = s.width * s.height * sizeof(uint32_t);
+
+			int inflatedLen = ccInflateMemoryWithHint(buffer, len, &deflated, sizeHint);
+			NSAssert( inflatedLen == sizeHint, @"CCTMXXMLParser: Hint failed!");
+			
+			inflatedLen = (int)&inflatedLen; // XXX: to avoid warings in compiler
+
 			free( buffer );
 			
 			if( ! deflated ) {

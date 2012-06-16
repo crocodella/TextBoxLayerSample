@@ -2,6 +2,7 @@
  * cocos2d for iPhone: http://www.cocos2d-iphone.org
  *
  * Copyright (c) 2008-2010 Ricardo Quesada
+ * Copyright (c) 2011 Zynga Inc.
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +28,6 @@
 
 #import "ccConfig.h"
 #import "CCSpriteBatchNode.h"
-#import "CCSpriteSheet.h"
 #import "CCSprite.h"
 #import "CCSpriteFrame.h"
 #import "CCSpriteFrameCache.h"
@@ -51,15 +51,19 @@ struct transformValues_ {
 	CGPoint pos;		// position x and y
 	CGPoint	scale;		// scale x and y
 	float	rotation;
+	CGPoint skew;		// skew x and y
 	CGPoint ap;			// anchor point in pixels
 	BOOL	visible;
 };
+
+static SEL selSortMethod = NULL;
 
 @interface CCSprite (Private)
 -(void)updateTextureCoords:(CGRect)rect;
 -(void)updateBlendFunc;
 -(void) initAnimationDictionary;
 -(void) getTransformValues:(struct transformValues_*)tv;	// optimization
+-(void) setReorderChildDirtyRecursively;
 @end
 
 @implementation CCSprite
@@ -105,13 +109,9 @@ struct transformValues_ {
 +(id)spriteWithSpriteFrameName:(NSString*)spriteFrameName
 {
 	CCSpriteFrame *frame = [[CCSpriteFrameCache sharedSpriteFrameCache] spriteFrameByName:spriteFrameName];
+	
+	NSAssert1(frame!=nil, @"Invalid spriteFrameName: %@", spriteFrameName);
 	return [self spriteWithSpriteFrame:frame];
-}
-
-// XXX: deprecated
-+(id)spriteWithCGImage:(CGImageRef)image
-{
-	return [[[self alloc] initWithCGImage:image] autorelease];
 }
 
 +(id)spriteWithCGImage:(CGImageRef)image key:(NSString*)key
@@ -123,10 +123,6 @@ struct transformValues_ {
 {
 	return [[[self alloc] initWithBatchNode:batchNode rect:rect] autorelease];
 }
-+(id) spriteWithSpriteSheet:(CCSpriteSheetInternalOnly*)spritesheet rect:(CGRect)rect // XXX DEPRECATED
-{
-	return [self spriteWithBatchNode:spritesheet rect:rect];
-}
 
 -(id) init
 {
@@ -134,7 +130,7 @@ struct transformValues_ {
 		dirty_ = recursiveDirty_ = NO;
 		
 		// by default use "Self Render".
-		// if the sprite is added to an SpriteSheet, then it will automatically switch to "SpriteSheet Render"
+		// if the sprite is added to a batchnode, then it will automatically switch to "batchnode Render"
 		[self useSelfRender];
 		
 		opacityModifyRGB_			= YES;
@@ -151,9 +147,6 @@ struct transformValues_ {
 		bzero(&quad_, sizeof(quad_));
 		
 		flipY_ = flipX_ = NO;
-		
-		// lazy alloc
-		animations_ = nil;
 		
 		// default transform anchor: center
 		anchorPoint_ =  ccp(0.5f, 0.5f);
@@ -180,6 +173,10 @@ struct transformValues_ {
 		
 		// updateMethod selector
 		updateMethod = (__typeof__(updateMethod))[self methodForSelector:@selector(updateTransform)];
+		
+		// sortMethod selector
+		selSortMethod = @selector(sortAllChildren);
+		sortMethod = (__typeof__(sortMethod))[self methodForSelector:selSortMethod];
 	}
 	
 	return self;
@@ -250,21 +247,6 @@ struct transformValues_ {
 	return [self initWithSpriteFrame:frame];
 }
 
-// XXX: deprecated
-- (id) initWithCGImage: (CGImageRef)image
-{
-	NSAssert(image!=nil, @"Invalid CGImageRef for sprite");
-
-	// XXX: possible bug. See issue #349. New API should be added
-	NSString *key = [NSString stringWithFormat:@"%08X",(unsigned long)image];
-	CCTexture2D *texture = [[CCTextureCache sharedTextureCache] addCGImage:image forKey:key];
-	
-	CGRect rect = CGRectZero;
-	rect.size = texture.contentSize;
-	
-	return [self initWithTexture:texture rect:rect];
-}
-
 - (id) initWithCGImage:(CGImageRef)image key:(NSString*)key
 {
 	NSAssert(image!=nil, @"Invalid CGImageRef for sprite");
@@ -295,11 +277,6 @@ struct transformValues_ {
 	return ret;
 }
 
--(id) initWithSpriteSheet:(CCSpriteSheetInternalOnly*)spritesheet rect:(CGRect)rect // XXX DEPRECATED
-{
-	return [self initWithBatchNode:spritesheet rect:rect];
-}
-
 - (NSString*) description
 {
 	return [NSString stringWithFormat:@"<%@ = %08X | Rect = (%.2f,%.2f,%.2f,%.2f) | tag = %i | atlasIndex = %i>", [self class], self,
@@ -312,7 +289,6 @@ struct transformValues_ {
 - (void) dealloc
 {
 	[texture_ release];
-	[animations_ release];
 	[super dealloc];
 }
 
@@ -339,15 +315,6 @@ struct transformValues_ {
 	usesBatchNode_ = YES;
 	textureAtlas_ = [batchNode textureAtlas]; // weak ref
 	batchNode_ = batchNode; // weak ref
-}
--(void) useSpriteSheetRender:(CCSpriteSheetInternalOnly*)spriteSheet // XXX DEPRECATED
-{
-	[self useBatchNode:spriteSheet];
-}
-
--(void) initAnimationDictionary
-{
-	animations_ = [[NSMutableDictionary alloc] initWithCapacity:2];
 }
 
 -(void)setTextureRect:(CGRect)rect
@@ -377,7 +344,7 @@ struct transformValues_ {
 	offsetPositionInPixels_.y = relativeOffsetInPixels.y + (contentSizeInPixels_.height - rectInPixels_.size.height) / 2;
 	
 	
-	// rendering using SpriteSheet
+	// rendering using batch node
 	if( usesBatchNode_ ) {
 		// update dirty_, don't update recursiveDirty_
 		dirty_ = YES;
@@ -492,10 +459,16 @@ struct transformValues_ {
 		float radians = -CC_DEGREES_TO_RADIANS(rotation_);
 		float c = cosf(radians);
 		float s = sinf(radians);
-		
+
 		matrix = CGAffineTransformMake( c * scaleX_,  s * scaleX_,
 									   -s * scaleY_, c * scaleY_,
 									   positionInPixels_.x, positionInPixels_.y);
+		if( skewX_ || skewY_ ) {
+			CGAffineTransform skewMatrix = CGAffineTransformMake(1.0f, tanf(CC_DEGREES_TO_RADIANS(skewY_)),
+																 tanf(CC_DEGREES_TO_RADIANS(skewX_)), 1.0f,
+																 0.0f, 0.0f);
+			matrix = CGAffineTransformConcat(skewMatrix, matrix);
+		}
 		matrix = CGAffineTransformTranslate(matrix, -anchorPointInPixels_.x, -anchorPointInPixels_.y);		
 
 		
@@ -523,13 +496,18 @@ struct transformValues_ {
 			}
 			CGAffineTransform newMatrix = CGAffineTransformIdentity;
 			
-			// 2nd: Translate, Rotate, Scale
+			// 2nd: Translate, Skew, Rotate, Scale
 			if( prevHonor & CC_HONOR_PARENT_TRANSFORM_TRANSLATE )
 				newMatrix = CGAffineTransformTranslate(newMatrix, tv.pos.x, tv.pos.y);
 			if( prevHonor & CC_HONOR_PARENT_TRANSFORM_ROTATE )
 				newMatrix = CGAffineTransformRotate(newMatrix, -CC_DEGREES_TO_RADIANS(tv.rotation));
 			if( prevHonor & CC_HONOR_PARENT_TRANSFORM_SCALE ) {
 				newMatrix = CGAffineTransformScale(newMatrix, tv.scale.x, tv.scale.y);
+			}
+			if ( prevHonor & CC_HONOR_PARENT_TRANSFORM_SKEW ) {
+				CGAffineTransform skew = CGAffineTransformMake(1.0f, tanf(CC_DEGREES_TO_RADIANS(tv.skew.y)), tanf(CC_DEGREES_TO_RADIANS(tv.skew.x)), 1.0f, 0.0f, 0.0f);
+				// apply the skew to the transform
+				newMatrix = CGAffineTransformConcat(skew, newMatrix);
 			}
 			
 			// 3rd: Translate anchor point
@@ -590,6 +568,8 @@ struct transformValues_ {
 	tv->scale.x		= scaleX_;
 	tv->scale.y		= scaleY_;
 	tv->rotation	= rotation_;
+	tv->skew.x		= skewX_;
+	tv->skew.y		= skewY_;
 	tv->ap			= anchorPointInPixels_;
 	tv->visible		= visible_;
 }
@@ -598,6 +578,8 @@ struct transformValues_ {
 
 -(void) draw
 {
+	[super draw];
+
 	NSAssert(!usesBatchNode_, @"If CCSprite is being rendered by CCSpriteBatchNode, CCSprite#draw SHOULD NOT be called");
 
 	// Default GL states: GL_TEXTURE_2D, GL_VERTEX_ARRAY, GL_COLOR_ARRAY, GL_TEXTURE_COORD_ARRAY
@@ -630,61 +612,76 @@ struct transformValues_ {
 	if( newBlend )
 		glBlendFunc(CC_BLEND_SRC, CC_BLEND_DST);
 	
-#if CC_SPRITE_DEBUG_DRAW
-	CGSize s = [self contentSize];
+#if CC_SPRITE_DEBUG_DRAW == 1
+	// draw bounding box
 	CGPoint vertices[4]={
-		ccp(0,0),ccp(s.width,0),
-		ccp(s.width,s.height),ccp(0,s.height),
+		ccp(quad_.tl.vertices.x,quad_.tl.vertices.y),
+		ccp(quad_.bl.vertices.x,quad_.bl.vertices.y),
+		ccp(quad_.br.vertices.x,quad_.br.vertices.y),
+		ccp(quad_.tr.vertices.x,quad_.tr.vertices.y),
 	};
 	ccDrawPoly(vertices, 4, YES);
-#endif // CC_TEXTURENODE_DEBUG_DRAW
+#elif CC_SPRITE_DEBUG_DRAW == 2
+	// draw texture box
+	CGSize s = self.textureRect.size;
+	CGPoint offsetPix = self.offsetPositionInPixels;
+	CGPoint vertices[4] = {
+		ccp(offsetPix.x,offsetPix.y), ccp(offsetPix.x+s.width,offsetPix.y),
+		ccp(offsetPix.x+s.width,offsetPix.y+s.height), ccp(offsetPix.x,offsetPix.y+s.height)
+	};
+	ccDrawPoly(vertices, 4, YES);
+#endif // CC_SPRITE_DEBUG_DRAW
 	
 }
 
 #pragma mark CCSprite - CCNode overrides
 
--(void) addChild:(CCSprite*)child z:(int)z tag:(int) aTag
+-(void) addChild:(CCSprite*)child z:(NSInteger)z tag:(NSInteger) aTag
 {
 	NSAssert( child != nil, @"Argument must be non-nil");
-	
-	[super addChild:child z:z tag:aTag];
-	
 	if( usesBatchNode_ ) {
 		NSAssert( [child isKindOfClass:[CCSprite class]], @"CCSprite only supports CCSprites as children when using CCSpriteBatchNode");
 		NSAssert( child.texture.name == textureAtlas_.texture.name, @"CCSprite is not using the same texture id");
 		
-		NSUInteger index = [batchNode_ atlasIndexForChild:child atZ:z];
-		[batchNode_ insertChild:child inAtlasAtIndex:index];
+        if( atlasIndex_ != CCSpriteIndexNotInitialized) {
+            //put it in descendants array of batch node only if not already added in descendants
+            [batchNode_ appendChild:child];
+        }
+		if (!isReorderChildDirty_) [self setReorderChildDirtyRecursively];
 	}
-	
+	//CCNode already sets isReorderChildDirty_ so this needs to be after batchNode check
+	[super addChild:child z:z tag:aTag];
 	hasChildren_ = YES;
 }
 
--(void) reorderChild:(CCSprite*)child z:(int)z
+-(void) reorderChild:(CCSprite*)child z:(NSInteger)z
 {
 	NSAssert( child != nil, @"Child must be non-nil");
 	NSAssert( [children_ containsObject:child], @"Child doesn't belong to Sprite" );
 
 	if( z == child.zOrder )
 		return;
-
-	if( usesBatchNode_ ) {
-		// XXX: Instead of removing/adding, it is more efficient to reorder manually
-		[child retain];
-		[self removeChild:child cleanup:NO];
-		[self addChild:child z:z];
-		[child release];
+	
+	if( usesBatchNode_ ) 
+	{	
+		if (!isReorderChildDirty_) 
+		{	
+			[self setReorderChildDirtyRecursively];
+			[batchNode_ reorderBatch:YES];
+		}	
 	}
-
-	else
-		[super reorderChild:child z:z];
+	
+	[super reorderChild:child z:z];
 }
 
 -(void)removeChild: (CCSprite *)sprite cleanup:(BOOL)doCleanup
 {
-	if( usesBatchNode_ )
-		[batchNode_ removeSpriteFromAtlas:sprite];
-
+	if( usesBatchNode_ ) {
+        if( atlasIndex_ != CCSpriteIndexNotInitialized) {
+            [batchNode_ removeSpriteFromAtlas:sprite];
+        }
+    }
+	
 	[super removeChild:sprite cleanup:doCleanup];
 	
 	hasChildren_ = ( [children_ count] > 0 );
@@ -703,12 +700,61 @@ struct transformValues_ {
 	hasChildren_ = NO;
 }
 
+- (void) sortAllChildren
+{
+	if (isReorderChildDirty_) 
+	{	
+		NSInteger i,j,length=children_->data->num;
+		CCNode ** x=children_->data->arr;
+		CCNode * tempItem;
+		
+		//insertion sort
+		for(i=1; i<length; i++)
+		{
+			tempItem = x[i];
+			j = i-1;
+			
+			//continue moving element downwards while zOrder is smaller or when zOrder is the same but orderOfArrival is smaller
+			while(j>=0 && ( tempItem.zOrder < x[j].zOrder || ( tempItem.zOrder == x[j].zOrder && tempItem.orderOfArrival < x[j].orderOfArrival ) ) ) 
+			{
+				x[j+1] = x[j];
+				j = j-1;
+			}
+			x[j+1] = tempItem;
+		}
+		
+		if (usesBatchNode_)
+		{
+			//sorted now check all children recursively
+			CCSprite *child;
+			// fast dispatch
+			CCARRAY_FOREACH(children_, child) child->sortMethod(child,selSortMethod);
+		}
+		
+		isReorderChildDirty_=NO;
+	}
+}
+
 //
 // CCNode property overloads
 // used only when parent is CCSpriteBatchNode
 //
 #pragma mark CCSprite - property overloads
 
+-(void) setReorderChildDirtyRecursively
+{
+	//only set parents flag the first time
+	if (!isReorderChildDirty_)
+	{
+		isReorderChildDirty_=YES;
+		CCNode* node=(CCNode*) parent_;
+		while ( node!=nil && node!=batchNode_)
+		{
+			[(CCSprite*) node setReorderChildDirtyRecursively];
+			node=node.parent;
+		}
+	}
+}
 
 -(void) setDirtyRecursively:(BOOL)b
 {
@@ -745,6 +791,18 @@ struct transformValues_ {
 -(void)setRotation:(float)rot
 {
 	[super setRotation:rot];
+	SET_DIRTY_RECURSIVELY();
+}
+
+-(void)setSkewX:(float)sx
+{
+	[super setSkewX:sx];
+	SET_DIRTY_RECURSIVELY();
+}
+
+-(void)setSkewY:(float)sy
+{
+	[super setSkewY:sy];
 	SET_DIRTY_RECURSIVELY();
 }
 
@@ -794,7 +852,7 @@ struct transformValues_ {
 {
 	if( flipX_ != b ) {
 		flipX_ = b;
-		[self setTextureRectInPixels:rectInPixels_ rotated:rectRotated_ untrimmedSize:rectInPixels_.size];
+		[self setTextureRectInPixels:rectInPixels_ rotated:rectRotated_ untrimmedSize:contentSizeInPixels_];
 	}
 }
 -(BOOL) flipX
@@ -806,7 +864,7 @@ struct transformValues_ {
 {
 	if( flipY_ != b ) {
 		flipY_ = b;	
-		[self setTextureRectInPixels:rectInPixels_ rotated:rectRotated_ untrimmedSize:rectInPixels_.size];
+		[self setTextureRectInPixels:rectInPixels_ rotated:rectRotated_ untrimmedSize:contentSizeInPixels_];
 	}	
 }
 -(BOOL) flipY
@@ -869,9 +927,9 @@ struct transformValues_ {
 	color_ = colorUnmodified_ = color3;
 	
 	if( opacityModifyRGB_ ){
-		color_.r = color3.r * opacity_/255;
-		color_.g = color3.g * opacity_/255;
-		color_.b = color3.b * opacity_/255;
+		color_.r = color3.r * opacity_/255.0f;
+		color_.g = color3.g * opacity_/255.0f;
+		color_.b = color3.b * opacity_/255.0f;
 	}
 	
 	[self updateColor];
@@ -908,20 +966,6 @@ struct transformValues_ {
 	[self setTextureRectInPixels:frame.rectInPixels rotated:frame.rotated untrimmedSize:frame.originalSizeInPixels];
 }
 
-// XXX deprecated
--(void) setDisplayFrame: (NSString*) animationName index:(int) frameIndex
-{
-	if( ! animations_ )
-		[self initAnimationDictionary];
-	
-	CCAnimation *a = [animations_ objectForKey: animationName];
-	CCSpriteFrame *frame = [[a frames] objectAtIndex:frameIndex];
-	
-	NSAssert( frame, @"CCSprite#setDisplayFrame. Invalid frame");
-	
-	[self setDisplayFrame:frame];
-}
-
 -(void) setDisplayFrameWithAnimationName: (NSString*) animationName index:(int) frameIndex
 {
 	NSAssert( animationName, @"CCSprite#setDisplayFrameWithAnimationName. animationName must not be nil");
@@ -946,23 +990,12 @@ struct transformValues_ {
 }
 
 -(CCSpriteFrame*) displayedFrame
-{
-	return [CCSpriteFrame frameWithTexture:self.texture rect:rect_];
-}
-
--(void) addAnimation: (CCAnimation*) anim
-{
-	// lazy alloc
-	if( ! animations_ )
-		[self initAnimationDictionary];
-	
-	[animations_ setObject:anim forKey:[anim name]];
-}
-
--(CCAnimation*)animationByName: (NSString*) animationName
-{
-	NSAssert( animationName != nil, @"animationName parameter must be non nil");
-    return [animations_ objectForKey:animationName];
+{	
+	return [CCSpriteFrame frameWithTexture:texture_
+							  rectInPixels:rectInPixels_
+								   rotated:rectRotated_
+									offset:unflippedOffsetPositionFromCenter_
+							  originalSize:contentSizeInPixels_];
 }
 
 #pragma mark CCSprite - CocosNodeTexture protocol

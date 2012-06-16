@@ -2,6 +2,7 @@
  * cocos2d for iPhone: http://www.cocos2d-iphone.org
  *
  * Copyright (c) 2008-2010 Ricardo Quesada
+ * Copyright (c) 2011 Zynga Inc.
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,12 +40,16 @@ typedef void (*TICK_IMP)(id, SEL, ccTime);
 	TICK_IMP impMethod;
 	
 	ccTime elapsed;
+	BOOL runForever;
+	BOOL useDelay;
+	uint nTimesExecuted; 
+	uint repeat; //0 = once, 1 is 2 x executed
+	ccTime delay; 
 
 @public					// optimization
 	ccTime interval;
 	SEL selector;
 }
-
 /** interval in seconds */
 @property (nonatomic,readwrite,assign) ccTime interval;
 
@@ -60,9 +65,9 @@ typedef void (*TICK_IMP)(id, SEL, ccTime);
 */
  -(id) initWithTarget:(id) t selector:(SEL)s;
 
-/** Initializes a timer with a target, a selector and an interval in seconds.
+/** Initializes a timer with a target, a selector, an interval in seconds, repeat in number of times to repeat, delay in seconds
 */
--(id) initWithTarget:(id) t selector:(SEL)s interval:(ccTime)seconds;
+-(id) initWithTarget:(id)t selector:(SEL)s interval:(ccTime) seconds repeat:(uint) r delay:(ccTime) d;
 
 
 /** triggers the timer */
@@ -110,6 +115,8 @@ struct _hashUpdateEntry;
 	// Optimization
 	TICK_IMP			impMethod;
 	SEL					updateSelector;
+    
+    BOOL updateHashLocked; // If true unschedule will not remove anything from a hash. Elements will only be marked for deletion.
 }
 
 /** Modifies the time of all scheduled callbacks.
@@ -138,9 +145,14 @@ struct _hashUpdateEntry;
  If paused is YES, then it won't be called until it is resumed.
  If 'interval' is 0, it will be called every frame, but if so, it recommened to use 'scheduleUpdateForTarget:' instead.
  If the selector is already scheduled, then only the interval parameter will be updated without re-scheduling it again.
-
- @since v0.99.3
+ repeat let the action be repeated repeat + 1 times, use kCCRepeatForever to let the action run continiously 
+ delay is the amount of time the action will wait before it'll start
+ 
+ @since v0.99.3, repeat and delay added in v1.1
  */
+-(void) scheduleSelector:(SEL)selector forTarget:(id)target interval:(ccTime)interval paused:(BOOL)paused repeat: (uint) repeat delay: (ccTime) delay;
+
+/** calls scheduleSelector with kCCRepeatForever and a 0 delay */
 -(void) scheduleSelector:(SEL)selector forTarget:(id)target interval:(ccTime)interval paused:(BOOL)paused;
 
 /** Schedules the 'update' selector for a given target with a given priority.
@@ -148,7 +160,7 @@ struct _hashUpdateEntry;
  The lower the priority, the earlier it is called.
  @since v0.99.3
  */
--(void) scheduleUpdateForTarget:(id)target priority:(int)priority paused:(BOOL)paused;
+-(void) scheduleUpdateForTarget:(id)target priority:(NSInteger)priority paused:(BOOL)paused;
 
 /** Unshedules a selector for a given target.
  If you want to unschedule the "update", use unscheudleUpdateForTarget.
@@ -188,25 +200,9 @@ struct _hashUpdateEntry;
  */
 -(void) resumeTarget:(id)target;
 
-
-/** schedules a Timer.
- It will be fired in every frame.
- 
- @deprecated Use scheduleSelector:forTarget:interval:paused instead. Will be removed in 1.0
+/** Returns whether or not the target is paused
+ @since v1.0.0
  */
--(void) scheduleTimer: (CCTimer*) timer DEPRECATED_ATTRIBUTE;
+-(BOOL) isTargetPaused:(id)target;
 
-/** unschedules an already scheduled Timer
- 
- @deprecated Use unscheduleSelector:forTarget. Will be removed in v1.0
- */
--(void) unscheduleTimer: (CCTimer*) timer DEPRECATED_ATTRIBUTE;
-
-/** unschedule all timers.
- You should NEVER call this method, unless you know what you are doing.
- 
- @deprecated Use scheduleAllSelectors instead. Will be removed in 1.0
- @since v0.8
- */
--(void) unscheduleAllTimers DEPRECATED_ATTRIBUTE;
 @end

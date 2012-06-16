@@ -1,11 +1,8 @@
 /*
  * cocos2d for iPhone: http://www.cocos2d-iphone.org
  *
- * Copyright (c) 2010 Neophit
- * 
  * Copyright (c) 2010 Ricardo Quesada
- * Copyright (c) 2011 Zynga Inc.
- *
+ * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -23,45 +20,23 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
- *
- * TMX Tiled Map support:
- * http://www.mapeditor.org
- *
  */
 
-#import "CCNode.h"
+// Only compile this code on Mac. These files should not be included on your iOS project.
+// But in case they are included, it won't be compiled.
+#import <Availability.h>
+#ifdef __IPHONE_OS_VERSION_MAX_ALLOWED
+#elif defined(__MAC_OS_X_VERSION_MAX_ALLOWED)
+
+#import <Cocoa/Cocoa.h>
 
 
-@class CCTMXObjectGroup;
-
-
-/** CCTMXObjectGroup represents the TMX object group.
-@since v0.99.0
-*/
-@interface CCTMXObjectGroup : NSObject
+@interface MacWindow : NSWindow
 {
-	NSString			*groupName_;
-	CGPoint				positionOffset_;
-	NSMutableArray		*objects_;
-	NSMutableDictionary	*properties_;
 }
-
-/** name of the group */
-@property (nonatomic,readwrite,retain) NSString *groupName;
-/** offset position of child objects */
-@property (nonatomic,readwrite,assign) CGPoint positionOffset;
-/** array of the objects */
-@property (nonatomic,readwrite,retain) NSMutableArray *objects;
-/** list of properties stored in a dictionary */
-@property (nonatomic,readwrite,retain) NSMutableDictionary *properties;
-
-/** return the value for the specific property name */
--(id) propertyNamed:(NSString *)propertyName;
-
-/** return the dictionary for the specific object name.
- It will return the 1st object found on the array for the given name.
- */
--(NSMutableDictionary*) objectNamed:(NSString *)objectName;
+- (id) initWithFrame:(NSRect)frame fullscreen:(BOOL)fullscreen;
 
 @end
+
+
+#endif // __MAC_OS_X_VERSION_MAX_ALLOWED

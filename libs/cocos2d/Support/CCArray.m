@@ -1,7 +1,7 @@
 /*
  * cocos2d for iPhone: http://www.cocos2d-iphone.org
  *
- * Copyright (c) 2010 Abstraction Works. http://www.abstractionworks.com
+ * Copyright (c) 2010 ForzeField Studios S.L. http://forzefield.com
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,6 @@
 
 #import "CCArray.h"
 #import "../ccMacros.h"
-
 
 @implementation CCArray
 
@@ -81,19 +80,14 @@
 	return self;
 }
 
-
-
 - (id) initWithCoder:(NSCoder*)coder
 {
 	self = [self initWithNSArray:[coder decodeObjectForKey:@"nsarray"]];
 	return self;
 }
-- (void)encodeWithCoder:(NSCoder *)coder
-{
-	[coder encodeObject:[self getNSArray] forKey:@"nsarray"];
-}
 
 
+#pragma mark Querying an Array
 
 - (NSUInteger) count
 {
@@ -112,11 +106,14 @@
 
 - (id) objectAtIndex:(NSUInteger)index
 {
-	if( index >= data->num )
-		[NSException raise:NSRangeException
-					format: @"index out of range in objectAtIndex(%d)", data->num ];
+	NSAssert2( index < data->num, @"index out of range in objectAtIndex(%d), index %i", data->num, index );
 	
 	return data->arr[index];
+}
+
+- (BOOL) containsObject:(id)object
+{
+	return ccArrayContainsObject(data, object);
 }
 
 - (id) lastObject
@@ -132,10 +129,22 @@
 	return data->arr[(int)(data->num*CCRANDOM_0_1())];
 }
 
-- (BOOL) containsObject:(id)object
+- (NSArray*) getNSArray
 {
-	return ccArrayContainsObject(data, object);
+	return [NSArray arrayWithObjects:data->arr count:data->num];
 }
+
+- (BOOL) isEqualToArray:(CCArray*)otherArray {
+	for (int i = 0; i< [self count]; i++)
+	{
+		if (![[self objectAtIndex:i] isEqual: [otherArray objectAtIndex:i]])
+		{
+			return NO;
+		}
+	}
+	return YES;
+}
+
 
 #pragma mark Adding Objects
 
@@ -161,16 +170,8 @@
 	ccArrayInsertObjectAtIndex(data, object, index);
 }
 
+
 #pragma mark Removing Objects
-
-
-- (void) removeLastObject
-{
-	if( data->num == 0 )
-		[NSException raise:NSRangeException
-					format: @"no objects added"];
-	ccArrayRemoveObjectAtIndex(data, data->num-1);
-}
 
 - (void) removeObject:(id)object
 {
@@ -182,14 +183,9 @@
 	ccArrayRemoveObjectAtIndex(data, index);
 }
 
-- (void) removeObjectsInArray:(CCArray*)otherArray
+- (void) fastRemoveObject:(id)object
 {
-	ccArrayRemoveArray(data, otherArray->data);
-}
-
-- (void) removeAllObjects
-{
-	ccArrayRemoveAllObjects(data);
+	ccArrayFastRemoveObject(data, object);
 }
 
 - (void) fastRemoveObjectAtIndex:(NSUInteger)index
@@ -197,10 +193,68 @@
 	ccArrayFastRemoveObjectAtIndex(data, index);
 }
 
-- (void) fastRemoveObject:(id)object
+- (void) removeObjectsInArray:(CCArray*)otherArray
 {
-	ccArrayFastRemoveObject(data, object);
+	ccArrayRemoveArray(data, otherArray->data);
 }
+
+- (void) removeLastObject
+{
+	NSAssert( data->num > 0, @"no objects added" );
+    
+	ccArrayRemoveObjectAtIndex(data, data->num-1);
+}
+
+- (void) removeAllObjects
+{
+	ccArrayRemoveAllObjects(data);
+}
+
+
+#pragma mark Rearranging Content
+
+- (void) exchangeObject:(id)object1 withObject:(id)object2
+{
+    NSUInteger index1 = ccArrayGetIndexOfObject(data, object1);
+    if(index1 == NSNotFound) return;
+    NSUInteger index2 = ccArrayGetIndexOfObject(data, object2);
+    if(index2 == NSNotFound) return;
+    
+    ccArraySwapObjectsAtIndexes(data, index1, index2);
+}
+
+- (void) exchangeObjectAtIndex:(NSUInteger)index1 withObjectAtIndex:(NSUInteger)index2
+{
+	ccArraySwapObjectsAtIndexes(data, index1, index2);
+}
+
+- (void) replaceObjectAtIndex:(NSUInteger)index withObject:(id)anObject {
+    ccArrayInsertObjectAtIndex(data, anObject, index);
+    ccArrayRemoveObjectAtIndex(data, index+1);
+}
+
+- (void) reverseObjects
+{
+	if (data->num > 1)
+	{
+		//floor it since in case of a oneven number the number of swaps stays the same
+		int count = (int) floorf(data->num/2.f); 
+		NSUInteger maxIndex = data->num - 1;
+		
+		for (int i = 0; i < count ; i++)
+		{
+			ccArraySwapObjectsAtIndexes(data, i, maxIndex);
+			maxIndex--;
+		}
+	}
+}
+
+- (void) reduceMemoryFootprint
+{
+	ccArrayShrink(data);
+}
+
+#pragma mark Sending Messages to Elements
 
 - (void) makeObjectsPerformSelector:(SEL)aSelector
 {
@@ -212,10 +266,12 @@
 	ccArrayMakeObjectsPerformSelectorWithObject(data, aSelector, object);
 }
 
-- (NSArray*) getNSArray
-{
-	return [NSArray arrayWithObjects:data->arr count:data->num];
+- (void) makeObjectPerformSelectorWithArrayObjects:(id)object selector:(SEL)aSelector 
+{		
+	ccArrayMakeObjectPerformSelectorWithArrayObjects(data, aSelector, object);
 }
+
+#pragma mark CCArray - NSFastEnumeration protocol
 
 - (NSUInteger)countByEnumeratingWithState:(NSFastEnumerationState *)state objects:(id *)stackbuf count:(NSUInteger)len
 {
@@ -227,19 +283,148 @@
 	return data->num;
 }
 
-- (void) dealloc
+#pragma mark CCArray - sorting 
+
+/** @since 1.1 */ 
+#pragma mark -
+#pragma mark CCArray insertionSortUsingCFuncComparator
+
+- (void) insertionSortUsingCFuncComparator:(int(*)(const void *, const void *))comparator
 {
-	ccArrayFree(data);
-	[super dealloc];
+    insertionSort(data, comparator);
+}
+
+#pragma mark CCArray qsortUsingCFuncComparator
+
+- (void) qsortUsingCFuncComparator:(int(*)(const void *, const void *))comparator {
+	
+	// stable c qsort is used - cost of sorting:  best n*log(n), average n*log(n)
+	//  qsort(void *, size_t, size_t, int (*)(const void *arg1, const void *arg2));
+	
+    qsort(data->arr, data->num, sizeof (id), comparator);  
+}
+
+#pragma mark CCArray mergesortLUsingCFuncComparator
+
+- (void) mergesortLUsingCFuncComparator:(int(*)(const void *, const void *))comparator
+{
+    mergesortL(data, sizeof (id), comparator); 
+}
+
+#pragma mark CCArray insertionSort with (SEL)selector
+
+- (void) insertionSort:(SEL)selector // It sorts source array in ascending order
+{
+	NSInteger i,j,length = data->num;
+	
+	id * x = data->arr;
+	id temp;	
+	
+	// insertion sort
+	for(i=1; i<length; i++)
+	{
+		j = i;
+		// continue moving element downwards while order is descending 
+		while( j>0 && ( (int)([x[j-1] performSelector:selector withObject:x[j]]) == NSOrderedDescending) )
+		{
+			temp = x[j];
+			x[j] = x[j-1];
+			x[j-1] = temp;
+			j--;
+		}
+	}
+}
+
+static inline NSInteger selectorCompare(id object1,id object2,void *userData){
+    SEL selector=userData;
+    
+    return (NSInteger)[object1 performSelector:selector withObject:object2];
+}
+
+-(void)sortUsingSelector:(SEL)selector {
+    [self sortUsingFunction:selectorCompare context:selector];
+}
+
+#pragma mark CCArray sortUsingFunction
+
+// using a comparison function
+-(void)sortUsingFunction:(NSInteger (*)(id, id, void *))compare context:(void *)context
+{
+    NSInteger h, i, j, k, l, m, n = [self count];
+    id  A, *B = NSZoneMalloc(NULL,(n/2 + 1) * sizeof(id));
+    
+	// to prevent retain counts from temporarily hitting zero.  
+    for(i=0;i<n;i++)
+        [[self objectAtIndex:i] retain];
+    
+    for (h = 1; h < n; h += h)
+    {
+        for (m = n - 1 - h; m >= 0; m -= h + h)
+        {
+            l = m - h + 1;
+            if (l < 0)
+                l = 0;
+            
+            for (i = 0, j = l; j <= m; i++, j++)
+                B[i] = [self objectAtIndex:j];
+            
+            for (i = 0, k = l; k < j && j <= m + h; k++)
+            {
+                A = [self objectAtIndex:j];
+                if (compare(A, B[i], context) == NSOrderedDescending)
+                    [self replaceObjectAtIndex:k withObject:B[i++]];
+                else
+                {
+                    [self replaceObjectAtIndex:k withObject:A];
+                    j++;
+                }
+            }
+            
+            while (k < j)
+                [self replaceObjectAtIndex:k++ withObject:B[i++]];
+        }
+    }
+    
+    for(i=0;i<n;i++)
+        [[self objectAtIndex:i] release];
+    
+    free(B);
 }
 
 #pragma mark CCArray - NSCopying protocol
 
 - (id)copyWithZone:(NSZone *)zone
 {
-	NSArray *nsArray = [self getNSArray];
-	CCArray *newArray = [[[self class] allocWithZone:zone] initWithNSArray:nsArray];
-	return newArray;
+	return [(CCArray*)[[self class] allocWithZone:zone] initWithArray:self];
+}
+
+- (void) encodeWithCoder:(NSCoder *)coder
+{
+	[coder encodeObject:[self getNSArray] forKey:@"nsarray"];
+}
+
+#pragma mark
+
+- (void) dealloc
+{
+	CCLOGINFO(@"cocos2d: deallocing %@", self);
+
+	ccArrayFree(data);
+	[super dealloc];
+}
+
+#pragma mark
+
+- (NSString*) description
+{
+	NSMutableString *ret = [NSMutableString stringWithFormat:@"<%@ = %08X> = ( ", [self class], self];
+
+	for( id obj in self)
+		[ret appendFormat:@"%@, ",obj];
+	
+	[ret appendString:@")"];
+	
+	return ret;
 }
 
 @end
