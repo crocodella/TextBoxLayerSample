@@ -7,6 +7,7 @@
 //
 
 #import "TextBoxLayer.h"
+#import "uthash.h"
 
 @implementation TextBoxLayer
 
@@ -160,8 +161,9 @@
 	for (int i = 0; i < [txt length] / [CCDirector sharedDirector].contentScaleFactor; i++) {
 		
 		int c = [txt characterAtIndex:i];
-		ccBMFontDef def = conf->BMFontArray_[c];
-		totalSize += def.xAdvance;
+		ccBMFontDef *def = NULL;
+        HASH_FIND_INT(conf->BMFontHash_,&c,def);
+		totalSize += def->xAdvance;
 	}
 	
 	return totalSize;
