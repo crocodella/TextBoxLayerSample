@@ -19,6 +19,7 @@
     float progress;
     
     int currentPage;
+    CGFloat textSpeed;
     
     NSMutableArray *pages;
     

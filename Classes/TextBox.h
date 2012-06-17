@@ -16,7 +16,8 @@
 - (id) initWithColor:(UIColor *)color 
 			   width:(CGFloat)w 
 			  height:(CGFloat)h 
-			 padding:(CGFloat)padding 
+			 padding:(CGFloat)padding
+               speed:(CGFloat)ts
 				text:(NSString *)txt;
 
 - (void)update:(float)dt;

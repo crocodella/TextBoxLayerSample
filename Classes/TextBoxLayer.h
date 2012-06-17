@@ -22,7 +22,9 @@
 	int currentPageIndex;
 	NSMutableString *currentPage;
 	int currentPageCharCount;
-	
+	CGFloat textSpeed;
+    ccTime countDownTimer;
+    
 	int totalPages;
 	
 	id<TextBoxDelegate> delegate;
