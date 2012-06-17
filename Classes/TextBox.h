@@ -30,5 +30,5 @@
 
 @optional
 - (void)textBox:(id<TextBox>)tbox didMoveToPage:(int)p;
-
+- (void)textBox:(id<TextBox>)tbox didFinishAllTextOnPage:(int)p;
 @end

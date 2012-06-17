@@ -127,6 +127,12 @@
         
         countDownTimer = textSpeed;
     }
+    
+    if(progress > currentPageCharCount - 1) {
+        if ([delegate respondsToSelector:@selector(textBox:didFinishAllTextOnPage:)]) {
+            [delegate textBox:(id<TextBox>) self didFinishAllTextOnPage:currentPageIndex];
+        }
+    }
 }
 
 - (NSString *)nextPage {
