@@ -1,0 +1,11 @@
+Changes:
+
+June 18, 2012: Send current page is done typing message to the delegate after a touch completes the page - Tebruno99
+
+June 16, 2012: Add new notification that the current page is done typing. - Tebruno99
+
+June 16, 2012: Refactor the typing so that text speed is settable and it uses characters per second. -Tebruno99
+
+June 16, 2012: Fix performance issue with main for loop in TextBoxLayer by elminating the for loop and not iterating over the entire array of characters.  - Tebruno99
+
+June 16, 2012: Updated to 1.1beta2 cocos2d - Tebruno99
