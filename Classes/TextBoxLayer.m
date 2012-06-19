@@ -183,6 +183,11 @@
 			charSpr.opacity = 255;
 		}
 		progress = currentPageCharCount;
+		if(progress > currentPageCharCount - 1) {
+			if ([delegate respondsToSelector:@selector(textBox:didFinishAllTextOnPage:)]) {
+				[delegate textBox:(id<TextBox>) self didFinishAllTextOnPage:currentPageIndex];
+			}
+		}
 		
 	} else {
 		 
