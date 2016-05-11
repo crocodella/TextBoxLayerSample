@@ -21,7 +21,7 @@
 
 /** 
  @file
- Based on Chipmunk cpArray.
+ arrd on Chipmunk cpArray.
  ccArray is a faster alternative to NSMutableArray, it does pretty much the
  same thing (stores NSObjects and retains/releases them appropriately). It's
  faster because:
@@ -43,6 +43,7 @@
 #import <stdlib.h>
 #import <string.h>
 
+#import "../ccMacros.h"
 
 #pragma mark -
 #pragma mark ccArray for Objects
@@ -51,10 +52,15 @@
 #define CCARRAYDATA_FOREACH(__array__, __object__)															\
 __object__=__array__->arr[0]; for(NSUInteger i=0, num=__array__->num; i<num; i++, __object__=__array__->arr[i])	\
 
+#if defined(__has_feature) && __has_feature(objc_arc)
+	typedef __strong id CCARRAY_ID;
+#else
+	typedef id CCARRAY_ID;
+#endif
 
 typedef struct ccArray {
 	NSUInteger num, max;
-	id *arr;
+	CCARRAY_ID *arr;
 } ccArray;
 
 /** Allocates and initializes a new array with specified capacity */
@@ -64,7 +70,7 @@ static inline ccArray* ccArrayNew(NSUInteger capacity) {
 	
 	ccArray *arr = (ccArray*)malloc( sizeof(ccArray) );
 	arr->num = 0;
-	arr->arr =  (id*) malloc( capacity * sizeof(id) );
+	arr->arr =  (CCARRAY_ID *)calloc(capacity, sizeof(id));
 	arr->max = capacity;
 	
 	return arr;
@@ -87,7 +93,10 @@ static inline void ccArrayFree(ccArray *arr)
 static inline void ccArrayDoubleCapacity(ccArray *arr)
 {
 	arr->max *= 2;
-	arr->arr = (id*) realloc( arr->arr, arr->max * sizeof(id) );
+	CCARRAY_ID *newArr = (CCARRAY_ID *)realloc( arr->arr, arr->max * sizeof(id) );
+	// will fail when there's not enough memory
+    NSCAssert(newArr != NULL, @"ccArrayDoubleCapacity failed. Not enough memory");
+	arr->arr = newArr;
 }
 
 /** Increases array capacity such that max >= num + extra. */
@@ -97,11 +106,36 @@ static inline void ccArrayEnsureExtraCapacity(ccArray *arr, NSUInteger extra)
 		ccArrayDoubleCapacity(arr);
 }
 
+/** shrinks the array so the memory footprint corresponds with the number of items */
+static inline void ccArrayShrink(ccArray *arr)
+{
+    NSUInteger newSize;
+	
+	//only resize when necessary
+	if (arr->max > arr->num && !(arr->num==0 && arr->max==1))
+	{
+		if (arr->num!=0) 
+		{
+			newSize=arr->num;
+			arr->max=arr->num; 
+		}
+		else 
+		{//minimum capacity of 1, with 0 elements the array would be free'd by realloc
+			newSize=1;
+			arr->max=1;
+		}
+		
+		arr->arr = (CCARRAY_ID *) realloc(arr->arr,newSize * sizeof(id) );
+		NSCAssert(arr->arr!=NULL,@"could not reallocate the memory");
+	}
+} 
+
 /** Returns index of first occurence of object, NSNotFound if object not found. */
 static inline NSUInteger ccArrayGetIndexOfObject(ccArray *arr, id object)
 {
 	for( NSUInteger i = 0; i < arr->num; i++)
 		if( arr->arr[i] == object ) return i;
+    
 	return NSNotFound;
 }
 
@@ -114,7 +148,7 @@ static inline BOOL ccArrayContainsObject(ccArray *arr, id object)
 /** Appends an object. Bahaviour undefined if array doesn't have enough capacity. */
 static inline void ccArrayAppendObject(ccArray *arr, id object)
 {
-	arr->arr[arr->num] = [object retain];
+	arr->arr[arr->num] = CC_ARC_RETAIN(object);
 	arr->num++;
 }
 
@@ -140,37 +174,50 @@ static inline void ccArrayAppendArrayWithResize(ccArray *arr, ccArray *plusArr)
 	ccArrayAppendArray(arr, plusArr);
 }
 
+/** Inserts an object at index */
 static inline void ccArrayInsertObjectAtIndex(ccArray *arr, id object, NSUInteger index)
 {
 	NSCAssert(index<=arr->num, @"Invalid index. Out of bounds");
 	
 	ccArrayEnsureExtraCapacity(arr, 1);
 	
-	int remaining = arr->num - index;
+	NSUInteger remaining = arr->num - index;
 	if( remaining > 0)
-		memmove(&arr->arr[index+1], &arr->arr[index], sizeof(id) * remaining );
+		memmove((void *)&arr->arr[index+1], (void *)&arr->arr[index], sizeof(id) * remaining );
 	
-	arr->arr[index] = [object retain];
+	arr->arr[index] = CC_ARC_RETAIN(object);
 	arr->num++;
+}
+
+/** Swaps two objects */
+static inline void ccArraySwapObjectsAtIndexes(ccArray *arr, NSUInteger index1, NSUInteger index2)
+{
+	NSCAssert(index1 < arr->num, @"(1) Invalid index. Out of bounds");
+	NSCAssert(index2 < arr->num, @"(2) Invalid index. Out of bounds");
+	
+	id object1 = arr->arr[index1];
+    
+	arr->arr[index1] = arr->arr[index2];
+	arr->arr[index2] = object1;
 }
 
 /** Removes all objects from arr */
 static inline void ccArrayRemoveAllObjects(ccArray *arr)
 {
 	while( arr->num > 0 )
-		[arr->arr[--arr->num] release]; 
+		CC_ARC_RELEASE(arr->arr[--arr->num]);
 }
 
 /** Removes object at specified index and pushes back all subsequent objects.
  Behaviour undefined if index outside [0, num-1]. */
 static inline void ccArrayRemoveObjectAtIndex(ccArray *arr, NSUInteger index)
 {
-	[arr->arr[index] release];
+	CC_ARC_RELEASE(arr->arr[index]);
 	arr->num--;
 	
-	int remaining = arr->num - index;
+	NSUInteger remaining = arr->num - index;
 	if(remaining>0)
-		memmove(&arr->arr[index], &arr->arr[index+1], remaining * sizeof(id));
+		memmove((void *)&arr->arr[index], (void *)&arr->arr[index+1], remaining * sizeof(id));
 }
 
 /** Removes object at specified index and fills the gap with the last object,
@@ -178,7 +225,7 @@ static inline void ccArrayRemoveObjectAtIndex(ccArray *arr, NSUInteger index)
  Behaviour undefined if index outside [0, num-1]. */
 static inline void ccArrayFastRemoveObjectAtIndex(ccArray *arr, NSUInteger index)
 {
-	[arr->arr[index] release];
+	CC_ARC_RELEASE(arr->arr[index]);
 	NSUInteger last = --arr->num;
 	arr->arr[index] = arr->arr[last];
 }
@@ -215,7 +262,7 @@ static inline void ccArrayFullRemoveArray(ccArray *arr, ccArray *minusArr)
 	
 	for( NSUInteger i = 0; i < arr->num; i++) {
 		if( ccArrayContainsObject(minusArr, arr->arr[i]) ) {
-			[arr->arr[i] release];
+			CC_ARC_RELEASE(arr->arr[i]);
 			back++;
 		} else
 			arr->arr[i - back] = arr->arr[i];
@@ -228,13 +275,28 @@ static inline void ccArrayFullRemoveArray(ccArray *arr, ccArray *minusArr)
 static inline void ccArrayMakeObjectsPerformSelector(ccArray *arr, SEL sel)
 {
 	for( NSUInteger i = 0; i < arr->num; i++)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
 		[arr->arr[i] performSelector:sel];
+#pragma clang diagnostic pop
 }
 
 static inline void ccArrayMakeObjectsPerformSelectorWithObject(ccArray *arr, SEL sel, id object)
 {
 	for( NSUInteger i = 0; i < arr->num; i++)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
 		[arr->arr[i] performSelector:sel withObject:object];
+#pragma clang diagnostic pop
+}
+
+static inline void ccArrayMakeObjectPerformSelectorWithArrayObjects(ccArray *arr, SEL sel, id object)
+{
+	for( NSUInteger i = 0; i < arr->num; i++)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+		[object performSelector:sel withObject:arr->arr[i]];
+#pragma clang diagnostic pop
 }
 
 
@@ -252,7 +314,7 @@ static inline ccCArray* ccCArrayNew(NSUInteger capacity) {
 	
 	ccCArray *arr = (ccCArray*)malloc( sizeof(ccCArray) );
 	arr->num = 0;
-	arr->arr =  (id*) malloc( capacity * sizeof(id) );
+	arr->arr =  (CCARRAY_ID *) malloc( capacity * sizeof(id) );
 	arr->max = capacity;
 	
 	return arr;
@@ -272,55 +334,55 @@ static inline void ccCArrayFree(ccCArray *arr)
 /** Doubles C array capacity */
 static inline void ccCArrayDoubleCapacity(ccCArray *arr)
 {
-	return ccArrayDoubleCapacity(arr);
+	ccArrayDoubleCapacity(arr);
 }
 
 /** Increases array capacity such that max >= num + extra. */
 static inline void ccCArrayEnsureExtraCapacity(ccCArray *arr, NSUInteger extra)
 {
-	return ccArrayEnsureExtraCapacity(arr,extra);
+	ccArrayEnsureExtraCapacity(arr,extra);
 }
 
 /** Returns index of first occurence of value, NSNotFound if value not found. */
-static inline NSUInteger ccCArrayGetIndexOfValue(ccCArray *arr, void* value)
+static inline NSUInteger ccCArrayGetIndexOfValue(ccCArray *arr, CCARRAY_ID value)
 {
 	for( NSUInteger i = 0; i < arr->num; i++)
-		if( arr->arr[i] == value ) return i;
+		if( [arr->arr[i] isEqual:value] ) return i;
 	return NSNotFound;
 }
 
 /** Returns a Boolean value that indicates whether value is present in the C array. */
-static inline BOOL ccCArrayContainsValue(ccCArray *arr, void* value)
+static inline BOOL ccCArrayContainsValue(ccCArray *arr, CCARRAY_ID value)
 {
 	return ccCArrayGetIndexOfValue(arr, value) != NSNotFound;
 }
 
 /** Inserts a value at a certain position. Behaviour undefined if aray doesn't have enough capacity */
-static inline void ccCArrayInsertValueAtIndex( ccCArray *arr, void *value, NSUInteger index)
+static inline void ccCArrayInsertValueAtIndex( ccCArray *arr, CCARRAY_ID value, NSUInteger index)
 {
-	assert( index < arr->max );
+	NSCAssert( index < arr->max, @"ccCArrayInsertValueAtIndex: invalid index");
 	
-	int remaining = arr->num - index;
+	NSUInteger remaining = arr->num - index;
 	
 	// last Value doesn't need to be moved
 	if( remaining > 0) {
 		// tex coordinates
-		memmove( &arr->arr[index+1],&arr->arr[index], sizeof(void*) * remaining );
+		memmove((void *)&arr->arr[index+1], (void *)&arr->arr[index], sizeof(void*) * remaining );
 	}
 	
 	arr->num++;	
-	arr->arr[index] = (id) value;
+	arr->arr[index] = value;
 }
 
 /** Appends an value. Bahaviour undefined if array doesn't have enough capacity. */
-static inline void ccCArrayAppendValue(ccCArray *arr, void* value)
+static inline void ccCArrayAppendValue(ccCArray *arr, CCARRAY_ID value)
 {
 	arr->arr[arr->num] = (id) value;
 	arr->num++;
 }
 
 /** Appends an value. Capacity of arr is increased if needed. */
-static inline void ccCArrayAppendValueWithResize(ccCArray *arr, void* value)
+static inline void ccCArrayAppendValueWithResize(ccCArray *arr, CCARRAY_ID value)
 {
 	ccCArrayEnsureExtraCapacity(arr, 1);
 	ccCArrayAppendValue(arr, value);
@@ -371,7 +433,7 @@ static inline void ccCArrayFastRemoveValueAtIndex(ccCArray *arr, NSUInteger inde
 /** Searches for the first occurance of value and removes it. If value is not found the function has no effect.
  @since v0.99.4
  */
-static inline void ccCArrayRemoveValue(ccCArray *arr, void* value)
+static inline void ccCArrayRemoveValue(ccCArray *arr, CCARRAY_ID value)
 {
 	NSUInteger index = ccCArrayGetIndexOfValue(arr, value);
 	if (index != NSNotFound)
@@ -403,4 +465,90 @@ static inline void ccCArrayFullRemoveArray(ccCArray *arr, ccCArray *minusArr)
 	
 	arr->num -= back;
 }
+
+//used by mergesortL
+static inline void pointerswap(void* a, void* b, size_t width)
+{
+    void* tmp;
+    tmp = *(void**)a;
+    *(void**)a = *(void**)b;
+    *(void**)b = tmp;
+}
+
+// iterative mergesort arrd on
+//  http://www.inf.fh-flensburg.de/lang/algorithmen/sortieren/merge/mergiter.htm  
+static inline int mergesortL(ccCArray* array, size_t width, int (*compar)(const void *, const void *))
+{
+    CCARRAY_ID *arr = array->arr; 
+    NSInteger i,j,k,s,m,n= array->num; 
+    
+    CCARRAY_ID *B = (CCARRAY_ID*) malloc((n/2 + 1) * width);
+    for (s = 1; s < n; s += s) 
+    {
+        for (m = n-1-s; m >= 0; m -= s+s)
+        {
+            NSInteger lo = MAX(m-(s+1),0); 
+            NSInteger hi = m+s; 
+            
+            j = lo;
+
+            if (m-j > 0)
+            {
+                memcpy(B, &arr[j], (m-j) * width);
+            }
+            
+            i = 0;
+            j = m;
+            k = lo; 
+            
+            while (k<j  && j <= hi) 
+            {
+                if (compar(&B[i],&arr[j]) <= 0)
+                {    
+                    pointerswap(&arr[k++],&B[i++], width);
+                }
+             
+                else 
+                {    
+                   pointerswap(&arr[k++],&arr[j++], width);
+                }
+            }
+            
+            while (k<j)
+                pointerswap(&arr[k++],&B[i++],width);
+        }
+    }
+   	free(B);
+	return 0;
+}
+
+static inline void insertionSort(ccCArray* arr, int (*comparator)(const void *, const void *))
+{
+    // It sorts source array in ascending order
+	
+	// adaptive - performance adapts to the initial order of elements
+	// stable - insertion sort retains relative order of the same elements
+	// in-place - requires constant amount of additional space
+	// online - new elements can be added during the sort
+	
+	NSInteger i,j,length = arr->num;
+	
+	CCARRAY_ID *x = arr->arr;
+	id temp;	
+    
+	// insertion sort
+	for(i=1; i<length; i++)
+	{
+		j = i;
+		//continue moving element downwards while order is descending 
+		while( j>0 && ( comparator(  &x[j-1],  &x[j]  ) == NSOrderedDescending) )
+		{
+			temp = x[j];
+			x[j] = x[j-1];
+			x[j-1] = temp;
+			j--;
+		}
+	}
+}
+
 #endif // CC_ARRAY_H

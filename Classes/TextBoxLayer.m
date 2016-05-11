@@ -7,12 +7,13 @@
 //
 
 #import "TextBoxLayer.h"
+#import "uthash.h"
 
 @implementation TextBoxLayer
 
 @synthesize delegate;
 
-- (id) initWithColor:(UIColor *)color width:(CGFloat)w height:(CGFloat)h padding:(CGFloat)padding text:(NSString *)txt {
+- (id) initWithColor:(UIColor *)color width:(CGFloat)w height:(CGFloat)h padding:(CGFloat)padding speed:(CGFloat)ts text:(NSString *)txt {
     
     int numComponents = CGColorGetNumberOfComponents(color.CGColor);
     
@@ -30,9 +31,11 @@
     ccColor4B col = ccc4((GLubyte) r * 255 , (GLubyte) g * 255, (GLubyte) b * 255, (GLubyte) a * 255);
     
 	if ((self = [super initWithColor:col width:w + (padding * 2) height:h + (padding * 2)])) {
+	
+        self.isTouchEnabled = YES;
 		
-		self.isTouchEnabled = YES;
-		
+        textSpeed = ts;
+        countDownTimer = textSpeed; // Arm the countdown timer.
 		ended = NO;
 		currentPageIndex = 0;
 		
@@ -103,30 +106,33 @@
 	[super dealloc];
 }
 
-- (void)update:(float)dt {
-	
-	progress += (dt * TEXT_SPEED);
-	
-	int visible = progress;
-	
-	if (visible > currentPageCharCount) {
-		progress = visible = currentPageCharCount;
-	}
-	
-	// Each character sprite is assigned a tag corresponding to its index in the string,
-	// and even though line-breaks are skipped, they are still counted for tag purposes.
-	// Therefore, we use an offset so that the tag is correct.
-	int offset = 0;
-	
-	for (int i = 0; i < visible; i++) {
-		
-		if ([currentPage characterAtIndex:i + offset] == '\n') {
-			offset++;
-		}
-		
-		CCSprite *charSpr = (CCSprite *) [textLabel getChildByTag:i + offset];
-		charSpr.opacity = 255;
-	}
+- (void)update:(ccTime)dt {
+    static int newLineOffset = 0;
+    if(progress > currentPageCharCount - 1) {
+        newLineOffset = 0;
+        return;
+    }
+
+    countDownTimer = countDownTimer - dt;
+    
+    if(countDownTimer < 0) {
+        if ([currentPage characterAtIndex:progress + newLineOffset] == '\n') {
+            newLineOffset++;
+        }
+        
+        CCSprite *charSpr = (CCSprite *) [textLabel getChildByTag:progress + newLineOffset];
+        charSpr.opacity = 255;
+        
+        progress++;
+        
+        countDownTimer = textSpeed;
+    }
+    
+    if(progress > currentPageCharCount - 1) {
+        if ([delegate respondsToSelector:@selector(textBox:didFinishAllTextOnPage:)]) {
+            [delegate textBox:(id<TextBox>) self didFinishAllTextOnPage:currentPageIndex];
+        }
+    }
 }
 
 - (NSString *)nextPage {
@@ -160,8 +166,9 @@
 	for (int i = 0; i < [txt length] / [CCDirector sharedDirector].contentScaleFactor; i++) {
 		
 		int c = [txt characterAtIndex:i];
-		ccBMFontDef def = conf->BMFontArray_[c];
-		totalSize += def.xAdvance;
+		ccBMFontDef *def = NULL;
+        HASH_FIND_INT(conf->BMFontHash_,&c,def);
+		totalSize += def->xAdvance;
 	}
 	
 	return totalSize;
@@ -176,6 +183,11 @@
 			charSpr.opacity = 255;
 		}
 		progress = currentPageCharCount;
+		if(progress > currentPageCharCount - 1) {
+			if ([delegate respondsToSelector:@selector(textBox:didFinishAllTextOnPage:)]) {
+				[delegate textBox:(id<TextBox>) self didFinishAllTextOnPage:currentPageIndex];
+			}
+		}
 		
 	} else {
 		 

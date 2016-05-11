@@ -2,6 +2,7 @@
  * cocos2d for iPhone: http://www.cocos2d-iphone.org
  *
  * Copyright (c) 2010 Ricardo Quesada
+ * Copyright (c) 2011 Zynga Inc.
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -49,14 +50,14 @@
 	unsigned int	pixelFormat_;
 
 	// The OpenGL ES names for the framebuffer and renderbuffer used to render to this view
-    GLuint defaultFramebuffer_;
-	GLuint colorRenderbuffer_;
+    GLuint defaultFrameBuffer_;
+	GLuint colorRenderBuffer_;
 	GLuint depthBuffer_;
 	
 	
 	//buffers for MSAA
-	GLuint msaaFramebuffer_;
-	GLuint msaaColorbuffer_;
+	GLuint msaaFrameBuffer_;
+	GLuint msaaColorBuffer_;
 	
 	EAGLContext *context_;
 }
@@ -66,6 +67,10 @@
 
 - (BOOL)resizeFromLayer:(CAEAGLLayer *)layer;
 
+- (unsigned int) colorRenderBuffer;
+- (unsigned int) defaultFrameBuffer;
+- (unsigned int) msaaFrameBuffer;
+- (unsigned int) msaaColorBuffer;
 @end
 
 #endif // __IPHONE_OS_VERSION_MAX_ALLOWED

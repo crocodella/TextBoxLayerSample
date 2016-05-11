@@ -16,7 +16,8 @@
 - (id) initWithColor:(UIColor *)color 
 			   width:(CGFloat)w 
 			  height:(CGFloat)h 
-			 padding:(CGFloat)padding 
+			 padding:(CGFloat)padding
+               speed:(CGFloat)ts
 				text:(NSString *)txt;
 
 - (void)update:(float)dt;
@@ -29,5 +30,5 @@
 
 @optional
 - (void)textBox:(id<TextBox>)tbox didMoveToPage:(int)p;
-
+- (void)textBox:(id<TextBox>)tbox didFinishAllTextOnPage:(int)p;
 @end

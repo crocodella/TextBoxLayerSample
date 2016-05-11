@@ -13,7 +13,7 @@
 
 @synthesize delegate;
 
-- (id) initWithColor:(UIColor *)color width:(CGFloat)w height:(CGFloat)h padding:(CGFloat)padding text:(NSString *)txt {
+- (id) initWithColor:(UIColor *)color width:(CGFloat)w height:(CGFloat)h padding:(CGFloat)padding speed:(CGFloat)ts text:(NSString *)txt {
     
     if ((self = [super initWithFrame:CGRectMake(0, 0, w + (padding * 2), h + (padding * 2))])) {
         self.backgroundColor = color;
@@ -21,6 +21,7 @@
         width = w;
         height = h;
         
+        textSpeed = ts;
         currentPage = 0;
         text = [txt retain];
         
@@ -68,7 +69,7 @@
 	
     NSString *page = [pages objectAtIndex:currentPage];
     
-	progress += (dt * TEXT_SPEED);
+	progress += (dt * textSpeed);
 	
 	int visible = progress;
     if (visible > [page length]) {
